@@ -12,11 +12,16 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 import os
 from pathlib import Path
+import environ
+
+# Initialize environment variables
+env = environ.Env()
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
@@ -101,6 +106,13 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+# Environment variables for Supabase and OpenAI
+SUPABASE_URL = env('SUPABASE_URL')
+SUPABASE_KEY = env('SUPABASE_KEY')
+OPENAI_API_KEY = env('OPENAI_API_KEY')
+SHOPIFY_API_KEY = env('SHOPIFY_API_KEY', default='')
+SHOPIFY_API_SECRET = env('SHOPIFY_API_SECRET', default='')
 
 
 # Internationalization
