@@ -1,14 +1,15 @@
 {
     "builds": [
       {
-        "src": "helloworld/wsgi.py",
-        "use": "@vercel/python"
+        "src": "pagepilot/wsgi.py",
+        "use": "@vercel/python",
+        "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
       }
     ],
     "routes": [
       {
         "src": "/(.*)",
-        "dest": "helloworld/wsgi.py"
+        "dest": "pagepilot/wsgi.py"
       }
     ]
   }
