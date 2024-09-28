@@ -108,6 +108,20 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}
+
 # Environment variables for Supabase and OpenAI
 SUPABASE_URL = env('SUPABASE_URL')
 SUPABASE_KEY = env('SUPABASE_KEY')
