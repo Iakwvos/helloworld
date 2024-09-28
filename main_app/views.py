@@ -297,7 +297,7 @@ def upload_images_and_get_handles(request, image_urls):
     handles = []
     shop_url = "https://2cce04-3a.myshopify.com/"
     api_version = '2024-07'
-    private_app_password = "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"
+    private_app_password = settings.SHOPIFY_API_SECRET
     temp_product_title = "Temp Product for Image Upload (DO NOT TOUCH)"
 
     try:
