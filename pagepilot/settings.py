@@ -85,8 +85,7 @@ WSGI_APPLICATION = 'pagepilot.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL'),
-        engine="django.db.backends.postgresql"
+        default=os.getenv('DATABASE_URL')
     )
 }
 

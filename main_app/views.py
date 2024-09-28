@@ -294,6 +294,63 @@ def upload_images_and_get_handles(request, image_urls):
     Returns:
         list: List of Shopify image handles.
     """
+    handles = []
+    shop_url = "https://2cce04-3a.myshopify.com/"
+    api_version = '2024-07'
+    private_app_password = "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"
+    temp_product_title = "Temp Product for Image Upload (DO NOT TOUCH)"
+
+    try:
+        initialize_shopify_session(shop_url, api_version, private_app_password)
+
+        # Check if the temporary product already exists
+        existing_products = shopify.Product.find(title=temp_product_title)
+        if existing_products:
+            temp_product = existing_products[0]
+            logger.info("Using existing temporary product with ID: %s", temp_product.id)
+        else:
+            # Create a new temporary product if it doesn't exist
+            temp_product = shopify.Product()
+            temp_product.title = temp_product_title
+            temp_product.body_html = "This product is used temporarily for image uploads."
+            temp_product.vendor = "Temporary Vendor"
+            temp_product.product_type = "Temporary Type"
+            if temp_product.save():
+                logger.info("Temporary product created with ID: %s", temp_product.id)
+            else:
+                logger.error("Failed to create temporary product. Errors: %s", temp_product.errors.full_messages())
+                return handles
+
+        # Upload images to the temporary product
+        for image_url in image_urls:
+            try:
+                if not image_url.startswith(('http://', 'https://')):
+                    image_url = 'https:' + image_url
+                response = requests.head(image_url, allow_redirects=True, timeout=5)
+                if response.status_code != 200:
+                    logger.warning("Invalid image URL or unreachable resource: %s", image_url)
+                    continue
+                image = shopify.Image()
+                image.product_id = temp_product.id
+                image.src = image_url
+                if image.save():
+                    formatted_handle = extract_image_handle(image.src)
+                    handles.append(formatted_handle)
+                    logger.info("Image uploaded successfully: %s", image_url)
+                else:
+                    logger.error("Failed to upload image: %s, Errors: %s", image_url, image.errors.full_messages())
+            except requests.RequestException as e:
+                logger.warning("Request error while validating URL %s: %s", image_url, e)
+            except Exception as e:
+                logger.error("Error uploading image %s: %s", image_url, e)
+
+    except shopify.errors.ShopifyError as e:
+        logger.error("Shopify error during image upload process: %s", e)
+    except Exception as e:
+        logger.error("Unexpected error during image upload process: %s", e)
+    finally:
+        shopify.ShopifyResource.clear_session()
+    return handles
     
 
 
