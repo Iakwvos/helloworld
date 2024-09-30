@@ -1,3 +1,5 @@
+/* main_app/static/css/main_page.css */
+
 /* Import Custom Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -39,11 +41,9 @@ p {
 
 /* Navbar Styling */
 .navbar {
-    background-color: var(--dark-bg-color); /* Changed from transparent */
+    background-color: var(--dark-bg-color);
     padding: 1rem 0;
-    border-bottom-left-radius: 20px;
-    border-bottom-right-radius: 20px;
-    transition: background-color 0.5s ease; /* Smooth transition for dynamic changes */
+    transition: background-color 0.5s ease;
 }
 
 .navbar .navbar-brand {
@@ -69,10 +69,6 @@ p {
 
 .navbar-toggler {
     border-color: var(--light-text-color);
-}
-
-.navbar-toggler-icon {
-    background-image: none;
 }
 
 .navbar-toggler-icon i {
@@ -361,6 +357,7 @@ p {
     background-color: var(--card-bg-color);
     text-align: center;
     color: var(--light-text-color); /* Improved text readability */
+    border-radius: 0 0 20px 20px;
 }
 
 .pricing-section .card-title {
@@ -550,8 +547,79 @@ footer a:hover {
         font-size: 2rem;
     }
 
-    .hero-animations .rocket-animation {
-        width: 200px;
+    .hero-section .btn {
+        font-size: 1rem;
+    }
+
+    .how-it-works-section .how-it-works-card {
+        padding: 1.5rem;
+    }
+
+    .features-section .feature-icon {
+        font-size: 2rem;
+    }
+
+    .pricing-section .card {
+        margin-bottom: 1.5rem;
+    }
+
+    .pricing-section .card-title {
+        font-size: 1.25rem;
+    }
+
+    .pricing-section .price {
+        font-size: 1.75rem;
+    }
+
+    .cta-section h2 {
+        font-size: 1.75rem;
+    }
+
+    .cta-section .btn {
+        font-size: 1rem;
+    }
+
+    .testimonial p {
+        font-size: 0.9rem;
     }
 }
 
+@media (max-width: 576px) {
+    .navbar-brand span {
+        font-size: 1rem;
+    }
+
+    .navbar .nav-link {
+        font-size: 0.9rem;
+    }
+
+    .hero-section {
+        padding: 80px 0 60px;
+    }
+
+    .hero-section h1 {
+        font-size: 1.5rem;
+    }
+
+    .secondary-cta h2,
+    .features-section h2,
+    .testimonials-section h2,
+    .pricing-section h2 {
+        font-size: 1.5rem;
+    }
+
+    .how-it-works-section h3,
+    .features-section h3,
+    .pricing-section .card-title {
+        font-size: 1.2rem;
+    }
+
+    .btn {
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+    }
+
+    .testimonial p {
+        font-size: 0.9rem;
+    }
+}

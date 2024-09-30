@@ -15,22 +15,22 @@
             {% csrf_token %}
             <div class="mb-3">
                 <label for="full_name" class="form-label">Full Name</label>
-                <input type="text" class="form-control form-control-lg" id="full_name" name="full_name" placeholder="Your full name" required>
+                <input type="text" class="form-control form-control-lg" id="full_name" name="full_name" placeholder="Your full name" required value="{{ request.POST.full_name }}">
             </div>
             <div class="mb-3">
                 <label for="email" class="form-label">Email Address</label>
-                <input type="email" class="form-control form-control-lg" id="email" name="email" placeholder="name@example.com" required>
+                <input type="email" class="form-control form-control-lg" id="email" name="email" placeholder="name@example.com" required value="{{ request.POST.email }}">
             </div>
             <div class="mb-3">
-                <label for="password1" class="form-label">Password</label>
-                <input type="password" class="form-control form-control-lg" id="password1" name="password1" placeholder="Create a password" required>
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control form-control-lg" id="password" name="password" placeholder="Create a password" required>
             </div>
             <div class="mb-4">
-                <label for="password2" class="form-label">Repeat Password</label>
-                <input type="password" class="form-control form-control-lg" id="password2" name="password2" placeholder="Repeat your password" required>
+                <label for="password_confirm" class="form-label">Confirm Password</label>
+                <input type="password" class="form-control form-control-lg" id="password_confirm" name="password_confirm" placeholder="Confirm your password" required>
             </div>
             <div class="mb-4 text-start">
-                <input type="checkbox" class="form-check-input" id="terms" required>
+                <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
                 <label class="form-check-label ms-2" for="terms">
                     By registering you agree to our <a href="{% url 'settings' %}">terms & conditions</a>.
                 </label>
@@ -40,4 +40,13 @@
         <p class="mt-3 text-center">Already have an account? <a href="{% url 'login' %}">Login here</a>.</p>
     </div>
 </div>
+
+{% if messages %}
+    <div class="mt-3">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} text-center">{{ message }}</div>
+        {% endfor %}
+    </div>
+{% endif %}
+
 {% endblock %}

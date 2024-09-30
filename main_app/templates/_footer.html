@@ -1,0 +1,33 @@
+<!-- main_app/templates/partials/footer.html -->
+{% load static %}
+<footer class="bg-dark text-center text-lg-start mt-5 border-top rounded-section">
+    <div class="container p-4">
+        <div class="row">
+            <div class="col-lg-6 col-md-12 mb-4 mb-md-0">
+                <h5 class="text-uppercase">PagePilot.ai</h5>
+                <p>
+                    Empowering you to create high-converting landing pages effortlessly with our AI-powered tools.
+                </p>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4 mb-md-0">
+                <h5 class="text-uppercase">Links</h5>
+                <ul class="list-unstyled mb-0">
+                    <li><a href="{% url 'settings' %}" class="text-white" target="_blank" rel="noopener noreferrer">Privacy Policy</a></li>
+                    <li><a href="{% url 'settings' %}" class="text-white" target="_blank" rel="noopener noreferrer">Terms of Use</a></li>
+                    <li><a href="{% url 'settings' %}" class="text-white" target="_blank" rel="noopener noreferrer">Contact</a></li>
+                    <li><a href="{% url 'settings' %}" class="text-white" target="_blank" rel="noopener noreferrer">Blog</a></li>
+                </ul>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4 mb-md-0">
+                <h5 class="text-uppercase">Follow Us</h5>
+                <a href="#" class="text-white me-3" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                <a href="#" class="text-white me-3" aria-label="Twitter"><i class="bi bi-twitter"></i></a>
+                <a href="#" class="text-white me-3" aria-label="LinkedIn"><i class="bi bi-linkedin"></i></a>
+                <a href="#" class="text-white me-3" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="text-center p-3">
+        © 2024 PagePilot.ai. All rights reserved.
+    </div>
+</footer>

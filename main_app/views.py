@@ -19,6 +19,8 @@ from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from urllib.parse import urljoin, urlparse
+
 from gotrue import errors as gotrue_errors
 from gotrue.errors import AuthRetryableError, AuthApiError
 
@@ -462,24 +464,59 @@ def signup_view(request):
         return redirect('dashboard')
 
     if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
+        # Capture form data
+        full_name = request.POST.get('full_name', '').strip()
+        email = request.POST.get('email', '').strip()
+        password = request.POST.get('password', '')
+        password_confirm = request.POST.get('password_confirm', '')
+        terms = request.POST.get('terms')
+
         logger.info("Signup attempt for email: %s", email)
 
+        # Initialize an empty list to collect error messages
+        errors = []
+
+        # Basic validation
+        if not full_name:
+            errors.append("Full name is required.")
+        if not email:
+            errors.append("Email address is required.")
+        if not password:
+            errors.append("Password is required.")
+        if not password_confirm:
+            errors.append("Password confirmation is required.")
+        if not terms:
+            errors.append("You must agree to the terms and conditions.")
+
+        # Check if passwords match
+        if password and password_confirm and password != password_confirm:
+            errors.append("Passwords do not match.")
+
+        # Optional: Add more validations (e.g., password strength, email format)
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+                logger.warning("Signup validation error for %s: %s", email, error)
+            return render(request, 'signup.html')
+
+        # Proceed with signup attempts
         max_retries = 3
         for attempt in range(1, max_retries + 1):
             try:
-                response = signup_user(email, password)
+                response = signup_user(email, password)  # Pass full_name if required
                 if response.error:
                     messages.error(request, response.error.message)
                     logger.warning("Signup error for %s: %s", email, response.error.message)
-                    return redirect('signup')
+                    return render(request, 'signup.html')
 
                 # Initialize profile with generations left based on plan
                 plan = 'Free'
                 generations_left = PLAN_LIMITS[plan]['generations_per_month']
-                supabase.table('profiles').insert({
+                supabase_client = Client(settings.SUPABASE_URL, settings.SUPABASE_KEY)  # Initialize Supabase client
+                supabase_client.table('profiles').insert({
                     'user_id': response.user.id,
+                    'full_name': full_name,  # Store full_name in profile if needed
                     'plan': plan,
                     'generations_left': generations_left,
                     'products_generated': 0,
@@ -494,15 +531,15 @@ def signup_view(request):
                     time.sleep(2)  # Wait before retrying
                     continue
                 messages.error(request, "The sign-up operation timed out. Please try again later.")
-                return redirect('signup')
+                return render(request, 'signup.html')
             except AuthApiError as e:
                 messages.error(request, e.message)
                 logger.error("AuthApiError during signup for %s: %s", email, e)
-                return redirect('signup')
+                return render(request, 'signup.html')
             except Exception as e:
                 messages.error(request, "An unexpected error occurred during signup.")
                 logger.error("Unexpected error during signup for %s: %s", email, e)
-                return redirect('signup')
+                return render(request, 'signup.html')
 
     return render(request, 'signup.html')
 
@@ -609,7 +646,9 @@ def dashboard_view(request):
 
         full_name = profile.get('full_name', 'User')
         plan = profile.get('plan', 'Free')
-        generations_left = profile.get('generations_left', PLAN_LIMITS[plan]['generations_per_month'])
+        generations_used = profile.get('generations_used', 0)
+        generations_per_month = PLAN_LIMITS[plan]['generations_per_month']
+        generations_left = generations_per_month - generations_used
 
         # Get plan limits
         plan_limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['Free'])
@@ -621,9 +660,6 @@ def dashboard_view(request):
         connected_stores = stores_response.data if stores_response.data else []
         stores_connected = len(connected_stores)
 
-        # Calculate generations left
-        generations_left = max(0, generations_left - products_generated)
-
     except Exception as e:
         handle_exception(request, e, user_id, "dashboard_view")
         products = []
@@ -633,6 +669,7 @@ def dashboard_view(request):
         max_products = PLAN_LIMITS['Free']['max_products']
         max_stores = PLAN_LIMITS['Free']['max_stores']
         products_generated = 0
+        generations_used = 0
         generations_left = PLAN_LIMITS['Free']['generations_per_month']
         stores_connected = 0
         connected_stores = []  # Ensure it's defined in case of an exception
@@ -649,6 +686,7 @@ def dashboard_view(request):
         'max_stores': max_stores,
         'connected_stores': connected_stores,  # Pass connected_stores to the template
     })
+
 
 
 
@@ -887,6 +925,30 @@ def delete_store_view(request, store_id):
 def connect_store_view(request):
     user_id = get_user_id(request)
     if request.method == 'POST':
+        # Fetch user's plan and current store count
+        try:
+            # Get user's plan
+            profile_response = supabase.table('profiles').select('plan').eq('user_id', user_id).single().execute()
+            profile = profile_response.data or {}
+            plan = profile.get('plan', 'Free')
+
+            # Get plan limits
+            plan_limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['Free'])
+            max_stores = plan_limits['max_stores']
+
+            # Count the number of stores the user has
+            stores_response = supabase.table('stores').select('id').eq('user_id', user_id).execute()
+            current_store_count = len(stores_response.data or [])
+
+            if current_store_count >= max_stores:
+                messages.error(request, f"You have reached the maximum number of stores ({max_stores}) for the {plan} plan. Please upgrade your plan to connect more stores.")
+                logger.warning("User ID %s has reached max stores limit.", user_id)
+                return redirect('dashboard')
+        except Exception as e:
+            handle_exception(request, e, user_id, "connect_store_view")
+            return redirect('dashboard')
+
+        # Proceed with connecting the store if limit not reached
         shop_url = request.POST.get('shop_url')
         shopify_api_key = request.POST.get('shopify_api_key')
         shopify_api_secret = request.POST.get('shopify_api_secret')
@@ -941,32 +1003,34 @@ def generate_product_view(request):
     """Handles the initial form submission from the dashboard."""
     user_id = get_user_id(request)
     if request.method == 'POST':
-        # Fetch user's plan and products generated
+        # Fetch user's plan and generations used
         try:
-            profile_response = supabase.table('profiles').select('plan', 'generations_left').eq('user_id', user_id).single().execute()
+            # Get user's plan and generations_used
+            profile_response = supabase.table('profiles').select('plan', 'generations_used').eq('user_id', user_id).single().execute()
             profile = profile_response.data or {}
             plan = profile.get('plan', 'Free')
-            generations_left = profile.get('generations_left', 0)
-
-            if generations_left <= 0:
-                messages.error(request, f"You have reached your product generation limit for the {plan} plan. Please upgrade to continue.")
-                logger.warning("User ID %s has reached product generation limit.", user_id)
-                return redirect('upgrade_plan')  # Redirect to upgrade plan page
+            generations_used = profile.get('generations_used', 0)
+            generations_per_month = PLAN_LIMITS[plan]['generations_per_month']
+    
+            if generations_used >= generations_per_month:
+                messages.error(request, f"You have reached the maximum number of product generations ({generations_per_month}) for the {plan} plan. Please upgrade your plan to generate more products.")
+                logger.warning("User ID %s has reached max generations limit.", user_id)
+                return redirect('dashboard')
         except Exception as e:
             handle_exception(request, e, user_id, "generate_product_view")
             return redirect('dashboard')
-
+    
         # Proceed with product generation
         product_url = request.POST.get('product_url')
         language = request.POST.get('language')
         category = request.POST.get('category')
         description = request.POST.get('description')
-
+    
         if not product_url or not language:
             messages.error(request, 'All fields are required to generate a product.')
             logger.warning("Missing fields in product generation by user_id %s", user_id)
             return redirect('dashboard')
-
+    
         # Validate product_url
         validator = URLValidator()
         try:
@@ -975,7 +1039,7 @@ def generate_product_view(request):
             messages.error(request, 'Enter a valid Product URL.')
             logger.warning("Invalid product_url provided: %s by user_id %s", product_url, user_id)
             return redirect('dashboard')
-
+    
         # Store in session
         request.session['product_generation'] = {
             'product_url': product_url,
@@ -984,7 +1048,7 @@ def generate_product_view(request):
             #'description': description,
         }
         logger.debug("Stored product_generation session data for user_id %s", user_id)
-
+    
         # Render image selection step immediately
         return render(request, 'generate_product_step2.html', {
             'title': 'Fetching Images...',  # Placeholder, will be updated via AJAX
@@ -993,10 +1057,12 @@ def generate_product_view(request):
             #'description': description,
         })
 
-    # If GET request, redirect to dashboard
-    return redirect('dashboard')
 
 
+
+# views.py
+
+from urllib.parse import urljoin, urlparse  # Add urljoin and urlparse imports
 
 @log_view
 @login_required
@@ -1028,6 +1094,10 @@ def fetch_images_view(request):
         logger.warning("Invalid product_url provided in session: %s for user_id %s", product_url, user_id)
         return JsonResponse({'error': 'Invalid product URL provided.'}, status=400)
 
+    # Parse the base URL for joining relative paths
+    parsed_url = urlparse(product_url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
     # Fetch and process images
     try:
         response = requests.get(product_url, timeout=10)
@@ -1040,26 +1110,45 @@ def fetch_images_view(request):
         images = []
         image_tags = soup.find_all('img')
         for img in image_tags:
-            img_src = img.get('src')
+            # Handle both 'src' and 'data-src' attributes for images (common in lazy-loading)
+            img_src = img.get('src') or img.get('data-src')
             if not img_src:
                 continue
-            if not img_src.startswith(('http://', 'https://')):
-                img_src = 'https:' + img_src
-            if img_src.startswith('http'):
+            img_src = img_src.strip()
+
+            # Exclude images with certain patterns in their URLs
+            exclude_patterns = ['sprite', 'favicon', 'logo', 'icon', 'background', 'blank', 'placeholder', 'banner']
+            if any(pattern in img_src.lower() for pattern in exclude_patterns):
+                logger.debug("Excluding image due to pattern match: %s", img_src)
+                continue
+
+            # Join relative URLs with base URL
+            img_url = urljoin(base_url, img_src)
+
+            if img_url.startswith('http'):
                 try:
-                    img_response = requests.get(img_src, stream=True, timeout=5)
+                    # Skip images that are already processed to avoid duplicates
+                    if any(image['src'] == img_url for image in images):
+                        continue
+
+                    # Fetch the image to check its size
+                    img_response = requests.get(img_url, stream=True, timeout=5)
                     img_response.raise_for_status()
                     img_data = img_response.content
                     image_file = BytesIO(img_data)
                     with Image.open(image_file) as image:
                         width, height = image.size
+                        # Exclude images that are too small
+                        if width < 100 or height < 100:
+                            logger.debug("Excluding image due to small size: %s (%dx%d)", img_url, width, height)
+                            continue
                         images.append({
-                            'src': img_src,
+                            'src': img_url,
                             'width': width,
                             'height': height
                         })
                 except Exception as e:
-                    logger.warning("Failed to process image %s: %s", img_src, e)
+                    logger.warning("Failed to process image %s: %s", img_url, e)
                     continue  # Skip images that cannot be processed
 
         if not images:
@@ -1077,11 +1166,12 @@ def fetch_images_view(request):
         request.session['product_generation']['images'] = images
         logger.debug("Updated session with title and images for user_id %s", user_id)
 
-        # Return the images and title
+        # Return the images and title, along with total_images
         return JsonResponse({
             'title': title,
             'language': language,
-            'images': images
+            'images': images,
+            'total_images': len(images)  # Add total_images to the response
         })
     except requests.exceptions.RequestException as e:
         logger.error(
@@ -1094,6 +1184,8 @@ def fetch_images_view(request):
     except Exception as e:
         logger.error("Unexpected error in fetch_images_view for user_id %s: %s", user_id, e)
         return JsonResponse({'error': f"An unexpected error occurred: {str(e)}"}, status=500)
+
+
 
 
 @log_view
@@ -1349,13 +1441,13 @@ def save_product_view(request):
                 'created_at': 'now()'  # New JSON column
             }).execute()
 
-            # Update generations_left and products_generated in the profile
-            profile_response = supabase.table('profiles').select('*').eq('user_id', user_id).single().execute()
+            # Update generations_used and products_generated in the profile
+            profile_response = supabase.table('profiles').select('generations_used', 'products_generated').eq('user_id', user_id).single().execute()
             profile = profile_response.data or {}
-            generations_left = profile.get('generations_left', 0) - 1
+            generations_used = profile.get('generations_used', 0) + 1
             products_generated = profile.get('products_generated', 0) + 1
             supabase.table('profiles').update({
-                'generations_left': generations_left,
+                'generations_used': generations_used,
                 'products_generated': products_generated,
             }).eq('user_id', user_id).execute()
 
@@ -1377,6 +1469,7 @@ def save_product_view(request):
 
 
 
+
 @log_view
 @login_required
 def upgrade_plan_view(request):
@@ -1388,9 +1481,11 @@ def upgrade_plan_view(request):
         profile_response = supabase.table('profiles').select('*').eq('user_id', user_id).single().execute()
         profile = profile_response.data or {}
         current_plan = profile.get('plan', 'Free')
+        generations_used = profile.get('generations_used', 0)
     except Exception as e:
         handle_exception(request, e, user_id, "upgrade_plan_view")
         current_plan = 'Free'
+        generations_used = 0
 
     if request.method == 'POST':
         new_plan = request.POST.get('plan')
@@ -1407,12 +1502,13 @@ def upgrade_plan_view(request):
             logger.warning("User_id %s attempted to downgrade from %s to %s", user_id, current_plan, new_plan)
             return redirect('upgrade_plan')
 
-        # Update user's plan and reset generations_left
+        # Update user's plan and generations_per_month
         try:
-            generations_left = PLAN_LIMITS[new_plan]['generations_per_month']
+            new_generations_per_month = PLAN_LIMITS[new_plan]['generations_per_month']
             supabase.table('profiles').update({
                 'plan': new_plan,
-                'generations_left': generations_left,
+                'generations_per_month': new_generations_per_month,
+                # No change to 'generations_used'
             }).eq('user_id', user_id).execute()
             messages.success(request, f"Your plan has been upgraded to {new_plan}.")
             logger.info("User ID %s upgraded to plan %s.", user_id, new_plan)
@@ -1427,6 +1523,7 @@ def upgrade_plan_view(request):
             'current_plan': current_plan,
             'plan_limits': PLAN_LIMITS,  # Pass plan limits to the template
         })
+
 
 
 
